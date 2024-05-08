@@ -175,8 +175,8 @@ def main_tracking(dataset_dir, descriptors, output, num_matched, n_neighbor=156,
                         ])
         img_q = input_transform(color_raw_q)[:3,...][None].to(device)
 
-        import time
-        a= time.time()
+        # import time
+        # a= time.time()
         
         if i == 0 or lost:
             sim = torch.einsum('id,jd->ij', query_desc[i:i+1].to(device), db_desc.to(device))
@@ -298,7 +298,7 @@ def main_tracking(dataset_dir, descriptors, output, num_matched, n_neighbor=156,
             #     _, nbr = knn.search(db_pos[k_nbr][pairs[l][1]].astype('float32')[None], num_matched) #156
             #     nbr_all = np.unique(np.concatenate((nbr_all, nbr.squeeze())))
             # k_nbr = nbr_all      
-        print(time.time()-a)
+        # print(time.time()-a)
 
     logger.info(f'Found {len(all_pairs)} pairs.')
     with open(output, 'w') as f:

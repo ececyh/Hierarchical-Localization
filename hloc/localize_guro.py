@@ -85,12 +85,13 @@ class NearestNDInterpolatorQuery(NearestNDInterpolator):
 
         return interp_values
 
-def eval_performance(results, image_dir):
+def eval_performance(results, image_dir, radius=[0.05, 0.10, 0.25, 0.5, 1]):
     with open(str(results) + "_logs.pkl", "rb") as f:
         logs = pickle.load(f)
     queries = list(logs["loc"].keys())
     
     pos_err, angle_err = [], []
+    recall_within_radius = np.zeros([len(radius)])
     for qname in queries:
         loc = logs["loc"][qname]
         qvec, tvec = loc["PnP_ret"]["qvec"], loc["PnP_ret"]["tvec"]
@@ -107,12 +108,14 @@ def eval_performance(results, image_dir):
 
         pos_err.append(np.linalg.norm(tvec - tvec_gt))
         angle_err.append(angle_between_quaternions(quat.inverse(), quat_gt)*180/np.pi)
-
+        recall_within_radius += np.array([np.any(np.linalg.norm(tvec - tvec_gt) < r) for r in radius])
+        
+    recall_within_radius /= len(queries)
     pos_err, angle_err = np.array(pos_err), np.array(angle_err)
     print("Top-5 largest error queries: ", [queries[i] for i in np.argsort(-pos_err)[:5]])
     print("pos mae: %.3f"% pos_err.mean(), "angle mae: %.3f"% angle_err.mean())
     print("pos rmse: %.3f"% ((pos_err**2).mean())**0.5, "angle rmse: %.3f"% ((angle_err**2).mean())**0.5)
-    return pos_err, angle_err
+    return pos_err, angle_err, recall_within_radius
 
 def eval_retrieval_recall(retrieval, image_dir, radius=2.5, topks=[5]):
     retrieval_dict = parse_retrieval(retrieval)
@@ -294,11 +297,11 @@ def main(dataset_dir, retrieval, features, matches, results, topk=None,
     logger.info('Starting localization...')
     for q in tqdm(queries):
         db = retrieval_dict[q]
-        import time
-        a = time.time()
+        # import time
+        # a = time.time()
         ret, mkpq, mkpr, mkp3d, indices, num_matches = pose_from_cluster(
             dataset_dir, q, db, feature_file, match_file, topk, skip_matches, interp)
-        print(time.time()-a)
+        # print(time.time()-a)
         
 
         poses[q] = (ret['qvec'], ret['tvec'])
