@@ -10,6 +10,6 @@ hloc/habitat/weights/
 datasets/*
 !datasets/sacre_coeur/
 datasets/sacre_coeur/query
-pipeline_Colo_loc.ipynb
-pipeline_Guro_loc.ipynb
-pipeline_Guro_sfm.ipynb
+ pipeline_Colo_loc.ipynb
+ pipeline_Guro_loc.ipynb
+ pipeline_Guro_sfm.ipynb
