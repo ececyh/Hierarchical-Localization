@@ -61,7 +61,8 @@ def pairs_from_score_matrix(
     assert scores.shape == invalid.shape
     if isinstance(scores, np.ndarray):
         scores = torch.from_numpy(scores)
-    # invalid = torch.from_numpy(invalid).to(scores.device)
+    if isinstance(invalid, np.ndarray):
+        invalid = torch.from_numpy(invalid).to(scores.device)
     if min_score is not None:
         invalid |= scores < min_score
     scores.masked_fill_(invalid, float("-inf"))
