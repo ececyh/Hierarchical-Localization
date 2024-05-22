@@ -404,11 +404,11 @@ def main(dataset_dir, retrieval, features, matches, results, topk=None,
     logger.info('Starting localization...')
     for q in tqdm(queries):
         db = retrieval_dict[q]
-        import time
-        localization = time.time()
+        # import time
+        # localization = time.time()
         ret, mkpq, mkpr, mkp3d, indices, num_matches = pose_from_cluster(
             dataset_dir, q, db, feature_file, match_file, topk, skip_matches, interp)
-        print("localization time: ", time.time()-localization)
+        # print("localization time: ", time.time()-localization)
         
 
         poses[q] = (ret['qvec'], ret['tvec'])
