@@ -160,8 +160,6 @@ class VisLoc():
             # import pdb
             # pdb.set_trace()
 
-        
-        
         # localize
         # localize_guro.main(images, loc_pairs, feature_path, match_path, results_linear_5_q1, topk=20, interp='linear')
         ret, mkpq, mkpr, mkp3d, indices, num_matches = localize_guro.pose_from_cluster_single(

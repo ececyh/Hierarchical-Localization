@@ -160,41 +160,41 @@ def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, p
     if topk is None:
         topk = len(retrieved)
 
-    # re-ranking using the number of the local descriptor matches
-    num_match_arr = []
-    for i, r in enumerate(retrieved):
-        kpr = feature_file[r]['keypoints'].__array__()
-        # pair = names_to_pair(q, r)
-        # m = pred_match[i]['matches0'].cpu().__array__()
-        m = pred_match['matches0'][i].cpu().__array__() # full batch
-        v = (m > -1)
+    # # re-ranking using the number of the local descriptor matches
+    # num_match_arr = []
+    # for i, r in enumerate(retrieved):
+    #     kpr = feature_file[r]['keypoints'].__array__()
+    #     # pair = names_to_pair(q, r)
+    #     m = pred_match[i]['matches0'].cpu().__array__()
+    #     # m = pred_match['matches0'][i].cpu().__array__() # full batch
+    #     v = (m > -1)
 
-        if skip and (np.count_nonzero(v) < skip):
-            continue
+    #     if skip and (np.count_nonzero(v) < skip):
+    #         continue
 
-        # mkpq, mkpr = kpq[v[0]], kpr[m[v]]
-        mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
-        num_match_arr.append(len(mkpq))
+    #     mkpq, mkpr = kpq[v[0]], kpr[m[v]]
+    #     # mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
+    #     num_match_arr.append(len(mkpq))
     
     num_match_arr = np.array(num_match_arr)
     retrieved = [retrieved[i] for i in np.argsort(-num_match_arr)]
-    # pred_match = [pred_match[i] for i in np.argsort(-num_match_arr)]
-    pred_match['matches0'] = pred_match['matches0'][np.argsort(-num_match_arr), ...] # full batch
+    pred_match = [pred_match[i] for i in np.argsort(-num_match_arr)]
+    # pred_match['matches0'] = pred_match['matches0'][np.argsort(-num_match_arr), ...] # full batch
 
     for i, r in enumerate(retrieved):
         if i == topk:
             break
         kpr = feature_file[r]['keypoints'].__array__()
         # pair = names_to_pair(q, r)
-        # m = pred_match[i]['matches0'].cpu().__array__()
-        m = pred_match['matches0'][i].cpu().__array__() # full batch
+        m = pred_match[i]['matches0'].cpu().__array__()
+        # m = pred_match['matches0'][i].cpu().__array__() # full batch
         v = (m > -1)
 
         if skip and (np.count_nonzero(v) < skip):
             continue
 
-        # mkpq, mkpr = kpq[v[0]], kpr[m[v]]
-        mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
+        mkpq, mkpr = kpq[v[0]], kpr[m[v]]
+        # mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
         num_matches += len(mkpq)
 
         # with open(Path(dataset_dir, r.split('_')[0] + '.txt'),'r') as f:
