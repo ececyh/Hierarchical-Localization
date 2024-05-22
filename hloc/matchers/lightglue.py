@@ -7,7 +7,7 @@ class LightGlue(BaseModel):
     default_conf = {
         "features": "superpoint",
         "depth_confidence": 0.95,
-        "width_confidence": 0.99,
+        "width_confidence": 0 , #0.99,
     }
     required_inputs = [
         "image0",

@@ -65,6 +65,54 @@ confs = {
             "resize_max": 1600,
         },
     },
+    "superpoint_inloc800": {
+        "output": "feats-superpoint-n800-r1600",
+        "model": {
+            "name": "superpoint",
+            "nms_radius": 4,
+            "max_keypoints": 800,
+        },
+        "preprocessing": {
+            "grayscale": True,
+            "resize_max": 1600,
+        },
+    },
+    "superpoint_inloc512": {
+        "output": "feats-superpoint-n512-r1600",
+        "model": {
+            "name": "superpoint",
+            "nms_radius": 4,
+            "max_keypoints": 512,
+        },
+        "preprocessing": {
+            "grayscale": True,
+            "resize_max": 1600,
+        },
+    },
+    "superpoint_inloc128": {
+        "output": "feats-superpoint-n128-r1600",
+        "model": {
+            "name": "superpoint",
+            "nms_radius": 4,
+            "max_keypoints": 128,
+        },
+        "preprocessing": {
+            "grayscale": True,
+            "resize_max": 1600,
+        },
+    },
+    "superpoint_inloc32": {
+        "output": "feats-superpoint-n32-r1600",
+        "model": {
+            "name": "superpoint",
+            "nms_radius": 4,
+            "max_keypoints": 32,
+        },
+        "preprocessing": {
+            "grayscale": True,
+            "resize_max": 1600,
+        },
+    },        
     "r2d2": {
         "output": "feats-r2d2-n5000-r1024",
         "model": {
@@ -256,7 +304,6 @@ class ImageDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.names)
-
 
 @torch.no_grad()
 def main(

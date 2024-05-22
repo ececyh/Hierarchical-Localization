@@ -109,7 +109,7 @@ def eval_performance(results, image_dir, radius=[0.05, 0.10, 0.25, 0.5, 1]):
         pos_err.append(np.linalg.norm(tvec - tvec_gt))
         angle_err.append(angle_between_quaternions(quat.inverse(), quat_gt)*180/np.pi)
         recall_within_radius += np.array([np.any(np.linalg.norm(tvec - tvec_gt) < r) for r in radius])
-        
+
     recall_within_radius /= len(queries)
     pos_err, angle_err = np.array(pos_err), np.array(angle_err)
     print("Top-5 largest error queries: ", [queries[i] for i in np.argsort(-pos_err)[:5]])
@@ -143,6 +143,110 @@ def eval_retrieval_recall(retrieval, image_dir, radius=2.5, topks=[5]):
 
     return topk_recalls
 
+def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, pred_match, topk=None, skip=None):
+    height, width = pred_local["image_size"] # cv2.imread(str(dataset_dir / q)).shape[:2]
+    cx = 651.398681640625 #325.6990051269531 #.5 * width
+    cy = 360.3771057128906 #180.189453125 #.5 * height
+    focal_length = 526.5249633789062 #263.27886962890625 #4032. * 28. / 36.
+
+    all_mkpq = [] # matched keypoint coordinates in query images
+    all_mkpr = [] # matched keypoint coordinates in retrieved images
+    all_mkp3d = [] # matched keypoint 3d coordinate
+    all_indices = []
+    kpq = pred_local['keypoints'].cpu().__array__() # feature_file[q]['keypoints'].__array__()
+    num_matches = 0
+    feature_file = h5py.File(feature_file, 'r', libver='latest')
+
+    if topk is None:
+        topk = len(retrieved)
+
+    # re-ranking using the number of the local descriptor matches
+    num_match_arr = []
+    for i, r in enumerate(retrieved):
+        kpr = feature_file[r]['keypoints'].__array__()
+        # pair = names_to_pair(q, r)
+        # m = pred_match[i]['matches0'].cpu().__array__()
+        m = pred_match['matches0'][i].cpu().__array__() # full batch
+        v = (m > -1)
+
+        if skip and (np.count_nonzero(v) < skip):
+            continue
+
+        # mkpq, mkpr = kpq[v[0]], kpr[m[v]]
+        mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
+        num_match_arr.append(len(mkpq))
+    
+    num_match_arr = np.array(num_match_arr)
+    retrieved = [retrieved[i] for i in np.argsort(-num_match_arr)]
+    # pred_match = [pred_match[i] for i in np.argsort(-num_match_arr)]
+    pred_match['matches0'] = pred_match['matches0'][np.argsort(-num_match_arr), ...] # full batch
+
+    for i, r in enumerate(retrieved):
+        if i == topk:
+            break
+        kpr = feature_file[r]['keypoints'].__array__()
+        # pair = names_to_pair(q, r)
+        # m = pred_match[i]['matches0'].cpu().__array__()
+        m = pred_match['matches0'][i].cpu().__array__() # full batch
+        v = (m > -1)
+
+        if skip and (np.count_nonzero(v) < skip):
+            continue
+
+        # mkpq, mkpr = kpq[v[0]], kpr[m[v]]
+        mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
+        num_matches += len(mkpq)
+
+        # with open(Path(dataset_dir, r.split('_')[0] + '.txt'),'r') as f:
+        with open(Path(dataset_dir, r.split('.')[0] + '.txt'),'r') as f:
+            lines = f.readlines()
+
+        # [Option2] depth image to camera coordinate and then to world coordinate
+        depth_img = cv2.imread(str(dataset_dir / r.split('.')[0]) + '.tiff', cv2.IMREAD_ANYDEPTH)
+        h, w = depth_img.shape
+        u = np.arange(w)
+        v = np.arange(h)
+        u, v = np.meshgrid(u, v)
+        u = u.flatten()
+        v = v.flatten()
+        z = depth_img.flatten()
+        # camera coordinate
+        x = (u - cx) * z / focal_length
+        y = (v - cy) * z / focal_length
+        all_rp3d_cam = np.stack([x, y, z], axis=-1) 
+        # world coordinate
+        qx, qy, qz, qw, px, py, pz = map(float, lines[0].split())
+        q_w2c = quaternion_from_coeff([qx, qy, qz, qw])
+        t_w2c = np.array([px, py, pz])
+        rmat = quaternion.as_rotation_matrix(q_w2c)
+        all_rp3d = np.matmul(all_rp3d_cam, rmat.T) + t_w2c
+        all_rp3d = all_rp3d.reshape([h, w, 3])
+        # all_rpr = np.stack([u, v], axis=-1)
+        # filter out mkpr which are not included in all_rpr
+        mkp3d = all_rp3d[mkpr[:,1].astype(int), mkpr[:,0].astype(int)]
+        valid = np.all(np.isfinite(mkp3d), axis=-1)
+        all_mkpq.append(mkpq[valid])
+        all_mkpr.append(mkpr[valid])
+        all_mkp3d.append(mkp3d[valid])
+        all_indices.append(np.full(np.count_nonzero(valid), i))
+
+    all_mkpq = np.concatenate(all_mkpq, 0)
+    all_mkpr = np.concatenate(all_mkpr, 0)
+    all_mkp3d = np.concatenate(all_mkp3d, 0)
+    all_indices = np.concatenate(all_indices, 0)
+
+    cfg = {
+        'model': 'SIMPLE_PINHOLE',
+        'width': width,
+        'height': height,
+        'params': [focal_length, cx, cy]
+    }
+
+    ret = pycolmap.absolute_pose_estimation(
+        all_mkpq, all_mkp3d, cfg, 48.00)
+    ret['cfg'] = cfg
+
+    return ret, all_mkpq, all_mkpr, all_mkp3d, all_indices, num_matches
 
 def pose_from_cluster(dataset_dir, q, retrieved, feature_file, match_file, topk=None,
                       skip=None, interp='linear'):
@@ -269,9 +373,12 @@ def pose_from_cluster(dataset_dir, q, retrieved, feature_file, match_file, topk=
         'height': height,
         'params': [focal_length, cx, cy]
     }
+    import time
+    ransac = time.time()
     ret = pycolmap.absolute_pose_estimation(
         all_mkpq, all_mkp3d, cfg, 48.00)
     ret['cfg'] = cfg
+    print("ransac time: ", time.time()-ransac)
     return ret, all_mkpq, all_mkpr, all_mkp3d, all_indices, num_matches
 
 def main(dataset_dir, retrieval, features, matches, results, topk=None,
@@ -297,11 +404,11 @@ def main(dataset_dir, retrieval, features, matches, results, topk=None,
     logger.info('Starting localization...')
     for q in tqdm(queries):
         db = retrieval_dict[q]
-        # import time
-        # a = time.time()
+        import time
+        localization = time.time()
         ret, mkpq, mkpr, mkp3d, indices, num_matches = pose_from_cluster(
             dataset_dir, q, db, feature_file, match_file, topk, skip_matches, interp)
-        # print(time.time()-a)
+        print("localization time: ", time.time()-localization)
         
 
         poses[q] = (ret['qvec'], ret['tvec'])

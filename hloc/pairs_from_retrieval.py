@@ -61,7 +61,7 @@ def pairs_from_score_matrix(
     assert scores.shape == invalid.shape
     if isinstance(scores, np.ndarray):
         scores = torch.from_numpy(scores)
-    invalid = torch.from_numpy(invalid).to(scores.device)
+    # invalid = torch.from_numpy(invalid).to(scores.device)
     if min_score is not None:
         invalid |= scores < min_score
     scores.masked_fill_(invalid, float("-inf"))
@@ -75,6 +75,45 @@ def pairs_from_score_matrix(
         pairs.append((i, indices[i, j]))
     return pairs
 
+def main_single(
+    query_desc,
+    descriptors,
+    num_matched,
+    query_prefix=None,
+    query_list=None,
+    db_prefix=None,
+    db_list=None,
+    db_model=None,
+    db_descriptors=None,
+):
+    # logger.info("Extracting image pairs from a retrieval database.")
+
+    # We handle multiple reference feature files.
+    # We only assume that names are unique among them and map names to files.
+    if db_descriptors is None:
+        db_descriptors = descriptors
+    if isinstance(db_descriptors, (Path, str)):
+        db_descriptors = [db_descriptors]
+    name2db = {n: i for i, p in enumerate(db_descriptors) for n in list_h5_names(p)}
+    db_names_h5 = list(name2db.keys())
+
+    db_names = parse_names(db_prefix, db_list, db_names_h5)
+    if len(db_names) == 0:
+        raise ValueError("Could not find any database image.")
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    db_desc = get_descriptors(db_names, db_descriptors, name2db)
+    # query_desc = get_descriptors(query_names, descriptors)
+    # import pdb
+    # pdb.set_trace()
+    sim = torch.einsum("id,jd->ij", query_desc.to(device).unsqueeze(0), db_desc.to(device).type(query_desc.dtype))
+
+    # Avoid self-matching
+    # self = np.array(query_names)[:, None] == np.array(db_names)[None]
+    self = torch.zeros_like(sim, dtype=bool)
+    pairs = pairs_from_score_matrix(sim, self, num_matched, min_score=0)
+    pairs = [db_names[j] for i, j in pairs]
+    return pairs
 
 def main(
     descriptors,

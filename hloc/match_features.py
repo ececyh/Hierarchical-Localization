@@ -105,6 +105,35 @@ class WorkQueue:
     def put(self, data):
         self.queue.put(data)
 
+class FeaturePairDataset(torch.utils.data.Dataset): # for single query and references
+    def __init__(self, pairs, feature_q, feature_path_r):
+        self.pairs = pairs
+        self.feature_q = feature_q
+        self.feature_path_r = feature_path_r
+
+    def __getitem__(self, idx):
+        name1 = self.pairs[idx]
+        data = {}
+        for k, v in self.feature_q.items():
+            if k == "image_size":
+                v = torch.tensor(v).float()
+            data[k + "0"] = v.cpu().float()
+            # print(k+"0: ", v.dtype, v.device)
+        data["image0"] = torch.empty((1,) + tuple(self.feature_q["image_size"])[::-1])
+
+        with h5py.File(self.feature_path_r, "r") as fd:
+            grp = fd[name1]
+            for k, v in grp.items():
+                data[k + "1"] = torch.from_numpy(v.__array__()).float()
+                # print(k+"1: ", v.dtype, v.device)
+                # print(k+"1: ", torch.from_numpy(v.__array__()).float())
+            data["image1"] = torch.empty((1,) + tuple(grp["image_size"])[::-1])
+
+        # print([(k,type(data[k])) for k in data.keys()])
+        return data
+
+    def __len__(self):
+        return len(self.pairs)
 
 class FeaturePairsDataset(torch.utils.data.Dataset):
     def __init__(self, pairs, feature_path_q, feature_path_r):
@@ -143,6 +172,70 @@ def writer_fn(inp, match_path):
         if "matching_scores0" in pred:
             scores = pred["matching_scores0"][0].cpu().half().numpy()
             grp.create_dataset("matching_scores0", data=scores)
+
+# def main_single(
+#     conf: Dict,
+#     pred_local,
+#     pairs,
+#     features: Union[Path, str],
+#     export_dir: Optional[Path] = None,
+#     features_ref: Optional[Path] = None,
+#     overwrite: bool = False,
+# ) -> Path:
+#     if isinstance(features, Path) or Path(features).exists():
+#         features_q = features
+#     else:
+#         if export_dir is None:
+#             raise ValueError(
+#                 "Provide an export_dir if features is not" f" a file path: {features}."
+#             )
+#         features_q = Path(export_dir, features + ".h5")
+
+#     if features_ref is None:
+#         features_ref = features_q
+#     # match_from_paths(conf, pairs, matches, features_q, features_ref, overwrite)
+
+#     pairs_path, feature_path_q, feature_path_ref = pairs, features_q, features_ref
+#     logger.info(
+#         "Matching local features with configuration:" f"\n{pprint.pformat(conf)}"
+#     )
+
+#     if not feature_path_q.exists():
+#         raise FileNotFoundError(f"Query feature file {feature_path_q}.")
+#     if not feature_path_ref.exists():
+#         raise FileNotFoundError(f"Reference feature file {feature_path_ref}.")
+#     # match_path.parent.mkdir(exist_ok=True, parents=True)
+
+#     assert pairs_path.exists(), pairs_path
+#     pairs = parse_retrieval(pairs_path)
+#     pairs = [(q, r) for q, rs in pairs.items() for r in rs]
+#     # pairs = find_unique_new_pairs(pairs, None if overwrite else match_path)
+#     if len(pairs) == 0:
+#         logger.info("Skipping the matching.")
+#         return
+
+#     device = "cuda" if torch.cuda.is_available() else "cpu"
+#     Model = dynamic_load(matchers, conf["model"]["name"])
+#     model = Model(conf["model"]).eval().to(device)
+
+#     dataset = FeaturePairsDataset(pairs, feature_path_q, feature_path_ref)
+#     loader = torch.utils.data.DataLoader(
+#         dataset, num_workers=5, batch_size=1, shuffle=False, pin_memory=True
+#     )
+#     # writer_queue = WorkQueue(partial(writer_fn, match_path=match_path), 5)
+
+#     for idx, data in enumerate(tqdm(loader, smoothing=0.1)):
+#         data = {
+#             k: v if k.startswith("image") else v.to(device, non_blocking=True)
+#             for k, v in data.items()
+#         }
+#         pred = model(data)
+#         pair = names_to_pair(*pairs[idx])
+#         # writer_queue.put((pair, pred))
+#     # writer_queue.join()
+#     logger.info("Finished exporting matches.")
+
+#     return 0
 
 
 def main(

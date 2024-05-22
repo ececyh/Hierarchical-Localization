@@ -283,13 +283,13 @@ def visualize_loc_3d_from_log(
         quat = quaternion.from_float_array([q_w, q_x, q_y, q_z])
         rmat = quaternion.as_rotation_matrix(quat)
         tvec = np.array([x, y, z])
-        plot_camera(fig, rmat, tvec, K, name=db_name, text=db_name, color='rgba(255,0,0,1)', size=size, width=width)
+        plot_camera(fig, rmat, tvec, K, name=db_name, text=db_name, color='rgba(0,0,255,1)', size=size, width=width)
         
     qvec, tvec = loc["PnP_ret"]["qvec"], loc["PnP_ret"]["tvec"]
     quat = quaternion.from_float_array(qvec)
     tvec = -quaternion.rotate_vectors(quat.inverse(), tvec)
     rmat = quaternion.as_rotation_matrix(quat.inverse())
-    plot_camera(fig, rmat, tvec, K, name=query_name, text=query_name, color='rgba(0,255,0,1)', size=size, width=width, fill=True)
+    plot_camera(fig, rmat, tvec, K, name=query_name, text=query_name, color='rgba(255,0,0,1)', size=size, width=width, fill=True)
     
     with open(Path(image_dir, query_name.split('.')[0] + '.txt'),'r') as f:
         line1 = f.readline()
@@ -297,7 +297,7 @@ def visualize_loc_3d_from_log(
     quat = quaternion.from_float_array([q_w, q_x, q_y, q_z])
     rmat = quaternion.as_rotation_matrix(quat)
     tvec = np.array([x, y, z])
-    plot_camera(fig, rmat, tvec, K, name='gt '+query_name, text='gt '+query_name, color='rgba(0,0,255,1)', size=size, width=width, fill=True)    
+    plot_camera(fig, rmat, tvec, K, name='gt '+query_name, text='gt '+query_name, color='rgba(0,255,0,1)', size=size, width=width, fill=True)    
 
 
 def visualize_loc_3d_kgnet(
