@@ -167,21 +167,27 @@ def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, p
             r = r.split("/")[-1]
         kpr = feature_file[r]['keypoints'].__array__()
         # pair = names_to_pair(q, r)
-        # m = pred_match[i]['matches0'].cpu().__array__()
-        m = pred_match['matches0'][i].cpu().__array__() # full batch
+        if isinstance(pred_match, list):
+            m = pred_match[i]['matches0'].cpu().__array__()
+        else:
+            m = pred_match['matches0'][i].cpu().__array__() # full batch
         v = (m > -1)
 
         if skip and (np.count_nonzero(v) < skip):
             continue
 
-        # mkpq, mkpr = kpq[v[0]], kpr[m[v]]
-        mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
+        if isinstance(pred_match, list):
+            mkpq, mkpr = kpq[v[0]], kpr[m[v]]
+        else:
+            mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
         num_match_arr.append(len(mkpq))
     
     num_match_arr = np.array(num_match_arr)
     retrieved = [retrieved[i] for i in np.argsort(-num_match_arr)]
-    # pred_match = [pred_match[i] for i in np.argsort(-num_match_arr)]
-    pred_match['matches0'] = pred_match['matches0'][np.argsort(-num_match_arr), ...] # full batch
+    if isinstance(pred_match, list):
+        pred_match = [pred_match[i] for i in np.argsort(-num_match_arr)]
+    else:
+        pred_match['matches0'] = pred_match['matches0'][np.argsort(-num_match_arr), ...] # full batch
 
     for i, r in enumerate(retrieved):
         if i == topk:
@@ -190,15 +196,19 @@ def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, p
             r = r.split("/")[-1]
         kpr = feature_file[r]['keypoints'].__array__()
         # pair = names_to_pair(q, r)
-        # m = pred_match[i]['matches0'].cpu().__array__()
-        m = pred_match['matches0'][i].cpu().__array__() # full batch
+        if isinstance(pred_match, list):
+            m = pred_match[i]['matches0'].cpu().__array__()
+        else:
+            m = pred_match['matches0'][i].cpu().__array__() # full batch
         v = (m > -1)
 
         if skip and (np.count_nonzero(v) < skip):
             continue
 
-        # mkpq, mkpr = kpq[v[0]], kpr[m[v]]
-        mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
+        if isinstance(pred_match, list):
+            mkpq, mkpr = kpq[v[0]], kpr[m[v]]
+        else:
+            mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
         num_matches += len(mkpq)
 
         rp3d = feature_file[r]['kp3d'].__array__()

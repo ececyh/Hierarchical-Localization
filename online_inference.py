@@ -169,8 +169,6 @@ class VisLoc():
             pred = self.model_matcher(data)
             # pred_match.append(pred)
             pred_match = pred # match with the full batch size
-            # import pdb
-            # pdb.set_trace()
 
         # localize
         # localize_guro.main(images, loc_pairs, feature_path, match_path, results_linear_5_q1, topk=20, interp='linear')
