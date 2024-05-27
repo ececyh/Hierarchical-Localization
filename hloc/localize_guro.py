@@ -155,7 +155,7 @@ def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, p
     all_indices = []
     kpq = pred_local['keypoints'].cpu().__array__() # feature_file[q]['keypoints'].__array__()
     num_matches = 0
-    feature_file = h5py.File(feature_file, 'r', libver='latest')
+    # feature_file = h5py.File(feature_file, 'r', libver='latest')
 
     if topk is None:
         topk = len(retrieved)
@@ -163,6 +163,8 @@ def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, p
     # re-ranking using the number of the local descriptor matches
     num_match_arr = []
     for i, r in enumerate(retrieved):
+        if 'db' not in list(feature_file.keys())[0]:
+            r = r.split("/")[-1]
         kpr = feature_file[r]['keypoints'].__array__()
         # pair = names_to_pair(q, r)
         # m = pred_match[i]['matches0'].cpu().__array__()
@@ -184,6 +186,8 @@ def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, p
     for i, r in enumerate(retrieved):
         if i == topk:
             break
+        if 'db' not in list(feature_file.keys())[0]:
+            r = r.split("/")[-1]
         kpr = feature_file[r]['keypoints'].__array__()
         # pair = names_to_pair(q, r)
         # m = pred_match[i]['matches0'].cpu().__array__()
@@ -197,33 +201,36 @@ def pose_from_cluster_single(dataset_dir, retrieved, pred_local, feature_file, p
         mkpq, mkpr = kpq[v], kpr[m[v]] # full batch
         num_matches += len(mkpq)
 
-        # with open(Path(dataset_dir, r.split('_')[0] + '.txt'),'r') as f:
-        with open(Path(dataset_dir, r.split('.')[0] + '.txt'),'r') as f:
-            lines = f.readlines()
+        rp3d = feature_file[r]['kp3d'].__array__()
+        mkp3d = rp3d[m[v]]  
 
-        # [Option2] depth image to camera coordinate and then to world coordinate
-        depth_img = cv2.imread(str(dataset_dir / r.split('.')[0]) + '.tiff', cv2.IMREAD_ANYDEPTH)
-        h, w = depth_img.shape
-        u = np.arange(w)
-        v = np.arange(h)
-        u, v = np.meshgrid(u, v)
-        u = u.flatten()
-        v = v.flatten()
-        z = depth_img.flatten()
-        # camera coordinate
-        x = (u - cx) * z / focal_length
-        y = (v - cy) * z / focal_length
-        all_rp3d_cam = np.stack([x, y, z], axis=-1) 
-        # world coordinate
-        qx, qy, qz, qw, px, py, pz = map(float, lines[0].split())
-        q_w2c = quaternion_from_coeff([qx, qy, qz, qw])
-        t_w2c = np.array([px, py, pz])
-        rmat = quaternion.as_rotation_matrix(q_w2c)
-        all_rp3d = np.matmul(all_rp3d_cam, rmat.T) + t_w2c
-        all_rp3d = all_rp3d.reshape([h, w, 3])
-        # all_rpr = np.stack([u, v], axis=-1)
-        # filter out mkpr which are not included in all_rpr
-        mkp3d = all_rp3d[mkpr[:,1].astype(int), mkpr[:,0].astype(int)]
+        # # with open(Path(dataset_dir, r.split('_')[0] + '.txt'),'r') as f:
+        # with open(Path(dataset_dir, r.split('.')[0] + '.txt'),'r') as f:
+        #     lines = f.readlines()
+        # # [Option2] depth image to camera coordinate and then to world coordinate
+        # depth_img = cv2.imread(str(dataset_dir / r.split('.')[0]) + '.tiff', cv2.IMREAD_ANYDEPTH)
+        # h, w = depth_img.shape
+        # u = np.arange(w)
+        # v = np.arange(h)
+        # u, v = np.meshgrid(u, v)
+        # u = u.flatten()
+        # v = v.flatten()
+        # z = depth_img.flatten()
+        # # camera coordinate
+        # x = (u - cx) * z / focal_length
+        # y = (v - cy) * z / focal_length
+        # all_rp3d_cam = np.stack([x, y, z], axis=-1) 
+        # # world coordinate
+        # qx, qy, qz, qw, px, py, pz = map(float, lines[0].split())
+        # q_w2c = quaternion_from_coeff([qx, qy, qz, qw])
+        # t_w2c = np.array([px, py, pz])
+        # rmat = quaternion.as_rotation_matrix(q_w2c)
+        # all_rp3d = np.matmul(all_rp3d_cam, rmat.T) + t_w2c
+        # all_rp3d = all_rp3d.reshape([h, w, 3])
+        # # all_rpr = np.stack([u, v], axis=-1)
+        # # filter out mkpr which are not included in all_rpr
+        # mkp3d = all_rp3d[mkpr[:,1].astype(int), mkpr[:,0].astype(int)]
+
         valid = np.all(np.isfinite(mkp3d), axis=-1)
         all_mkpq.append(mkpq[valid])
         all_mkpr.append(mkpr[valid])

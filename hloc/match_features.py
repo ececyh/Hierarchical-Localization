@@ -106,10 +106,11 @@ class WorkQueue:
         self.queue.put(data)
 
 class FeaturePairDataset(torch.utils.data.Dataset): # for single query and references
-    def __init__(self, pairs, feature_q, feature_path_r):
+    def __init__(self, pairs, feature_q, db_local):
         self.pairs = pairs
         self.feature_q = feature_q
-        self.feature_path_r = feature_path_r
+        # self.feature_path_r = feature_path_r
+        self.fd = db_local
 
     def __getitem__(self, idx):
         name1 = self.pairs[idx]
@@ -121,13 +122,16 @@ class FeaturePairDataset(torch.utils.data.Dataset): # for single query and refer
             # print(k+"0: ", v.dtype, v.device)
         data["image0"] = torch.empty((1,) + tuple(self.feature_q["image_size"])[::-1])
 
-        with h5py.File(self.feature_path_r, "r") as fd:
-            grp = fd[name1]
-            for k, v in grp.items():
-                data[k + "1"] = torch.from_numpy(v.__array__()).float()
-                # print(k+"1: ", v.dtype, v.device)
-                # print(k+"1: ", torch.from_numpy(v.__array__()).float())
-            data["image1"] = torch.empty((1,) + tuple(grp["image_size"])[::-1])
+        # with h5py.File(self.feature_path_r, "r") as fd:
+            # if name1 not in fd.keys():
+        if 'db' not in list(self.fd.keys())[0]:
+            name1 = name1.split("/")[-1]
+        grp = self.fd[name1]
+        for k, v in grp.items():
+            data[k + "1"] = torch.from_numpy(v.__array__()).float()
+            # print(k+"1: ", v.dtype, v.device)
+            # print(k+"1: ", torch.from_numpy(v.__array__()).float())
+        data["image1"] = torch.empty((1,) + tuple(grp["image_size"])[::-1])
 
         # print([(k,type(data[k])) for k in data.keys()])
         return data

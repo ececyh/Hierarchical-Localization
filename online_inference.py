@@ -23,6 +23,7 @@ import PIL.Image
 import cv2
 import torch
 import quaternion
+import h5py
 
 def resize_image(image, size, interp):
     if interp.startswith("cv2_"):
@@ -52,7 +53,7 @@ class VisLoc():
         else:
             self.global_feature_dir = global_feature_dir
         if local_feature_dir is None:
-            self.local_feature_dir = "outputs/" + str(dataset_dir).split('/')[1] + "/" + self.local_conf["output"] + ".h5"
+            self.local_feature_dir = "outputs/" + str(dataset_dir).split('/')[1] + "/" + self.local_conf["output"] + "-depth.h5"
         else:
             self.local_feature_dir = local_feature_dir
         self.as_half = as_half
@@ -73,6 +74,17 @@ class VisLoc():
             "interpolation": "cv2_area",  # pil_linear is more accurate but slower
         }
         
+        db_descriptors = [self.global_feature_dir]
+        name2db = {n: i for i, p in enumerate(db_descriptors) for n in list_h5_names(p)}
+        db_names_h5 = list(name2db.keys())
+
+        self.db_names = pairs_from_retrieval.parse_names('db', None, db_names_h5)
+        if len(self.db_names) == 0:
+            raise ValueError("Could not find any database image.")
+
+        self.db_glob = pairs_from_retrieval.get_descriptors(self.db_names, db_descriptors, name2db)
+        self.db_local = h5py.File(self.local_feature_dir, "r") 
+
         print("Visual localization inference ready.")
 
     def preprocess(self, image, conf):        
@@ -140,10 +152,10 @@ class VisLoc():
                     pred_local[k] = pred_local[k].type(torch.float16)
         
         # retrieve image pairs
-        retrieved = pairs_from_retrieval.main_single(pred_glob["global_descriptor"], self.global_feature_dir, num_matched=top_k, query_prefix="query0", db_prefix="db")
+        retrieved = pairs_from_retrieval.main_single(pred_glob["global_descriptor"], self.db_glob, num_matched=top_k, db_names=self.db_names)
         
         # match feature
-        dataset = match_features.FeaturePairDataset(retrieved, pred_local, self.local_feature_dir)
+        dataset = match_features.FeaturePairDataset(retrieved, pred_local, self.db_local) #self.local_feature_dir)
         loader = torch.utils.data.DataLoader(
             dataset, num_workers=0, batch_size=top_k, shuffle=False, pin_memory=True
         )
@@ -163,7 +175,9 @@ class VisLoc():
         # localize
         # localize_guro.main(images, loc_pairs, feature_path, match_path, results_linear_5_q1, topk=20, interp='linear')
         ret, mkpq, mkpr, mkp3d, indices, num_matches = localize_guro.pose_from_cluster_single(
-                                                        self.dataset_dir, retrieved, pred_local, self.local_feature_dir, pred_match)
+                                                        self.dataset_dir, retrieved, pred_local, 
+                                                        self.db_local, pred_match, top_k
+                                                        )
         qvec, tvec = ret['qvec'], ret['tvec']
         quat = quaternion.from_float_array(qvec)
         tvec = -quaternion.rotate_vectors(quat.inverse(), tvec)

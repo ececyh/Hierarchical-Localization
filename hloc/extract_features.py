@@ -17,6 +17,7 @@ from . import extractors, logger
 from .utils.base_model import dynamic_load
 from .utils.io import list_h5_names, read_image
 from .utils.parsers import parse_image_lists
+from .habitat.geometry_utils import *
 
 """
 A set of standard configurations that can be directly selected from the command
@@ -314,6 +315,7 @@ def main(
     image_list: Optional[Union[Path, List[str]]] = None,
     feature_path: Optional[Path] = None,
     overwrite: bool = False,
+    depth: bool = False
 ) -> Path:
     logger.info(
         "Extracting local features with configuration:" f"\n{pprint.pformat(conf)}"
@@ -321,7 +323,10 @@ def main(
 
     dataset = ImageDataset(image_dir, conf["preprocessing"], image_list)
     if feature_path is None:
-        feature_path = Path(export_dir, conf["output"] + ".h5")
+        if depth is True:
+            feature_path = Path(export_dir, conf["output"] + "-depth.h5")
+        else:
+            feature_path = Path(export_dir, conf["output"] + ".h5")
     feature_path.parent.mkdir(exist_ok=True, parents=True)
     skip_names = set(
         list_h5_names(feature_path) if feature_path.exists() and not overwrite else ()
@@ -352,6 +357,38 @@ def main(
                 pred["scales"] *= scales.mean()
             # add keypoint uncertainties scaled to the original resolution
             uncertainty = getattr(model, "detection_noise", 1) * scales.mean()
+        
+        if depth is True:
+            kpr = pred["keypoints"]
+            cx = 651.398681640625 #325.6990051269531 #.5 * width
+            cy = 360.3771057128906 #180.189453125 #.5 * height
+            focal_length = 526.5249633789062 
+            with open(Path(image_dir, name.split('.')[0] + '.txt'),'r') as f:
+                line = f.readline()
+
+            depth_img = cv2.imread(str(image_dir / name.split('.')[0]) + '.tiff', cv2.IMREAD_ANYDEPTH)
+            h, w = depth_img.shape
+            u = np.arange(w)
+            v = np.arange(h)
+            u, v = np.meshgrid(u, v)
+            u = u.flatten()
+            v = v.flatten()
+            z = depth_img.flatten()
+            # camera coordinate
+            x = (u - cx) * z / focal_length
+            y = (v - cy) * z / focal_length
+            all_rp3d_cam = np.stack([x, y, z], axis=-1) 
+            # world coordinate
+            qx, qy, qz, qw, px, py, pz = map(float, line.split())
+            q_w2c = quaternion_from_coeff([qx, qy, qz, qw])
+            t_w2c = np.array([px, py, pz])
+            rmat = quaternion.as_rotation_matrix(q_w2c)
+            all_rp3d = np.matmul(all_rp3d_cam, rmat.T) + t_w2c
+            all_rp3d = all_rp3d.reshape([h, w, 3])
+            # all_rpr = np.stack([u, v], axis=-1)
+            # filter out mkpr which are not included in all_rpr
+            kp3d = all_rp3d[kpr[:,1].astype(int), kpr[:,0].astype(int)]
+            pred['kp3d'] = kp3d
 
         if as_half:
             for k in pred:
