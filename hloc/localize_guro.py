@@ -282,22 +282,22 @@ def pose_from_cluster(dataset_dir, q, retrieved, feature_file, match_file, topk=
     if topk is None:
         topk = len(retrieved)
 
-    # re-ranking using the number of the local descriptor matches
-    num_match_arr = []
-    for i, r in enumerate(retrieved):
-        kpr = feature_file[r]['keypoints'].__array__()
-        pair = names_to_pair(q, r)
-        m = match_file[pair]['matches0'].__array__()
-        v = (m > -1)
+    # # re-ranking using the number of the local descriptor matches
+    # num_match_arr = []
+    # for i, r in enumerate(retrieved):
+    #     kpr = feature_file[r]['keypoints'].__array__()
+    #     pair = names_to_pair(q, r)
+    #     m = match_file[pair]['matches0'].__array__()
+    #     v = (m > -1)
 
-        if skip and (np.count_nonzero(v) < skip):
-            continue
+    #     if skip and (np.count_nonzero(v) < skip):
+    #         continue
 
-        mkpq, mkpr = kpq[v], kpr[m[v]]
-        num_match_arr.append(len(mkpq))
+    #     mkpq, mkpr = kpq[v], kpr[m[v]]
+    #     num_match_arr.append(len(mkpq))
     
-    num_match_arr = np.array(num_match_arr)
-    retrieved = [retrieved[i] for i in np.argsort(-num_match_arr)]
+    # num_match_arr = np.array(num_match_arr)
+    # retrieved = [retrieved[i] for i in np.argsort(-num_match_arr)]
 
     for i, r in enumerate(retrieved):
         if i == topk:
